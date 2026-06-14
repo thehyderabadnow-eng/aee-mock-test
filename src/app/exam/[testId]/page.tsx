@@ -1,8 +1,8 @@
-// src/app/exam/[testId]/page.tsx
 "use client";
 
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import { supabase } from '../../utils/supabase'; // గమనిక: ఈ పాత్ మీ ఫోల్డర్ స్ట్రక్చర్ ని బట్టి మారొచ్చు (ఉదా: '@/utils/supabase')
 import { FaClock, FaCheckCircle, FaBookmark, FaBars, FaTimes, FaSpinner } from 'react-icons/fa';
 
 // --- TypeScript Interfaces ---
@@ -23,24 +23,42 @@ const examQuestions: Question[] = [
 
 export default function ExamInterface() {
   const router = useRouter();
-  
+  const params = useParams();
+  const testId = params.testId as string;
+
   // --- State Management ---
+  const [isAuthorized, setIsAuthorized] = useState<boolean>(false); // 🔒 Security State
   const [currentIndex, setCurrentIndex] = useState<number>(0);
   const [answers, setAnswers] = useState<Record<number, string>>({});
   const [markedForReview, setMarkedForReview] = useState<Record<number, boolean>>({});
-  const [visited, setVisited] = useState<Record<number, boolean>>({ 0: true }); 
+  const [visited, setVisited] = useState<Record<number, boolean>>({ 0: true });
   const [timeLeft, setTimeLeft] = useState<number>(9000); // 150 mins
   const [showPaletteMobile, setShowPaletteMobile] = useState<boolean>(false);
-  
+
   // Modals state
   const [showSubmitModal, setShowSubmitModal] = useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
   const currentQuestion = examQuestions[currentIndex];
-  const totalQuestions = examQuestions.length; 
+  const totalQuestions = examQuestions.length;
+
+  // --- 🔒 Authentication Check Effect ---
+  useEffect(() => {
+    const checkAuth = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        router.push('/login'); // లాగిన్ అవ్వకపోతే బయటికి పంపించేస్తాం
+      } else {
+        setIsAuthorized(true); // లాగిన్ అయితేనే ఎగ్జామ్ చూపిస్తాం
+      }
+    };
+    checkAuth();
+  }, [router]);
 
   // --- Timer Effect ---
   useEffect(() => {
+    if (!isAuthorized) return; // ఆథరైజ్ అయ్యేదాకా టైమర్ స్టార్ట్ అవ్వకూడదు
+
     const timer = setInterval(() => {
       setTimeLeft((prev) => {
         if (prev <= 1) {
@@ -52,7 +70,7 @@ export default function ExamInterface() {
       });
     }, 1000);
     return () => clearInterval(timer);
-  }, []);
+  }, [isAuthorized]);
 
   // --- Helper Functions ---
   const formatTime = (seconds: number) => {
@@ -84,7 +102,7 @@ export default function ExamInterface() {
 
   const handleMarkReview = () => {
     setMarkedForReview((prev) => ({ ...prev, [currentIndex]: true }));
-    handleNext(); 
+    handleNext();
   };
 
   const handleSaveAndNext = () => {
@@ -100,7 +118,7 @@ export default function ExamInterface() {
     const newAnswers = { ...answers };
     delete newAnswers[currentIndex];
     setAnswers(newAnswers);
-    
+
     const newMarked = { ...markedForReview };
     delete newMarked[currentIndex];
     setMarkedForReview(newMarked);
@@ -139,14 +157,13 @@ export default function ExamInterface() {
     }
   });
 
-  // --- Real Exam Status for Palette Colors ---
   const getQuestionStatus = (index: number) => {
     const isAnswered = !!answers[index];
     const isMarked = !!markedForReview[index];
     const isVisited = !!visited[index];
 
     if (isAnswered && isMarked) return 'answered_marked';
-    if (isMarked && !isAnswered) return 'marked'; 
+    if (isMarked && !isAnswered) return 'marked';
     if (isAnswered) return 'answered';
     if (isVisited) return 'not_answered';
     return 'not_visited';
@@ -157,29 +174,68 @@ export default function ExamInterface() {
       case 'answered': return 'bg-green-600 text-white border-green-700';
       case 'not_answered': return 'bg-red-500 text-white border-red-600';
       case 'marked': return 'bg-purple-600 text-white border-purple-700 relative overflow-hidden';
-      case 'answered_marked': return 'bg-purple-600 text-white border-purple-700 relative overflow-hidden'; 
+      case 'answered_marked': return 'bg-purple-600 text-white border-purple-700 relative overflow-hidden';
       default: return 'bg-gray-200 text-gray-700 border-gray-300'; // not visited
     }
   };
 
-  const confirmFinalSubmit = () => {
-    setShowSubmitModal(false); 
-    setIsSubmitting(true); 
-    setTimeout(() => {
-      router.push('/dashboard'); 
-    }, 2500);
+  const confirmFinalSubmit = async () => {
+    setShowSubmitModal(false);
+    setIsSubmitting(true);
+
+    try {
+      // 1. లాగిన్ అయిన యూజర్ ఐడీని తెచ్చుకోవడం
+      const { data: { user } } = await supabase.auth.getUser();
+
+      if (user) {
+        // 2. డేటాబేస్ లోకి యూజర్ ఆన్సర్స్ (answers state) ఇన్సర్ట్ చేయడం
+        const { error } = await supabase
+          .from('test_attempts')
+          .insert([
+            {
+              user_id: user.id,
+              test_id: testId,
+              answers_data: answers // యూజర్ పెట్టిన ఆన్సర్స్ ని JSON లాగా సేవ్ చేస్తున్నాం
+            }
+          ]);
+
+        if (error) throw error;
+      }
+
+      // 3. సక్సెస్ అయ్యాక, డాష్‌బోర్డ్‌కి కాకుండా నేరుగా "Results" పేజీకి పంపించడం
+      setTimeout(() => {
+        router.push(`/results/${testId}`);
+      }, 1500);
+
+    } catch (error: any) {
+      console.error("Error saving results:", error);
+      alert("Failed to submit results. Please try again.");
+      setIsSubmitting(false);
+    }
   };
+
+  // 🔒 సెక్యూరిటీ చెక్ అవుతున్నంత సేపు లోడింగ్ చూపిస్తాం
+  if (!isAuthorized) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <FaSpinner className="animate-spin text-5xl text-blue-600 mx-auto mb-4" />
+          <h2 className="text-xl font-bold text-gray-700">Verifying Access...</h2>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-100 flex flex-col font-sans">
-      
+
       {/* 1. Top Header Bar */}
       <header className="bg-blue-800 text-white p-4 shadow-md flex justify-between items-center z-10">
         <div>
           <h1 className="font-bold text-lg hidden md:block">TGPSC AEE - Grand Test</h1>
           <h1 className="font-bold text-lg md:hidden">TGPSC Exam</h1>
         </div>
-        
+
         <div className="flex items-center space-x-4">
           <div className="flex items-center bg-blue-900 px-4 py-2 rounded-lg border border-blue-700 shadow-inner">
             <FaClock className="mr-2 text-yellow-400 animate-pulse" />
@@ -187,7 +243,7 @@ export default function ExamInterface() {
               {formatTime(timeLeft)}
             </span>
           </div>
-          <button 
+          <button
             className="lg:hidden bg-blue-700 p-2 rounded hover:bg-blue-600"
             onClick={() => setShowPaletteMobile(!showPaletteMobile)}
           >
@@ -198,10 +254,10 @@ export default function ExamInterface() {
 
       {/* Main Content Layout */}
       <div className="flex flex-1 overflow-hidden relative">
-        
+
         {/* 2. Left Pane: Question Area */}
         <div className="w-full lg:w-3/4 flex flex-col p-4 md:p-6 overflow-y-auto">
-          
+
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 flex-1 flex flex-col">
             <div className="border-b border-gray-200 p-4 bg-gray-50 rounded-t-xl flex justify-between items-center">
               <span className="font-bold text-lg text-blue-800 tracking-wide">
@@ -219,13 +275,13 @@ export default function ExamInterface() {
 
               <div className="space-y-4">
                 {currentQuestion.options.map((option, idx) => (
-                  <label 
-                    key={idx} 
+                  <label
+                    key={idx}
                     className={`flex items-center p-4 border rounded-lg cursor-pointer transition-colors duration-200
                       ${answers[currentIndex] === option ? 'bg-blue-50 border-blue-500 ring-1 ring-blue-500 shadow-sm' : 'hover:bg-gray-50 border-gray-300'}`}
                   >
-                    <input 
-                      type="radio" 
+                    <input
+                      type="radio"
                       name={`question-${currentQuestion.id}`}
                       value={option}
                       checked={answers[currentIndex] === option}
@@ -240,13 +296,13 @@ export default function ExamInterface() {
 
             <div className="border-t border-gray-200 p-4 bg-gray-50 rounded-b-xl flex flex-wrap gap-3 justify-between items-center">
               <div className="flex gap-3">
-                <button 
+                <button
                   onClick={handleMarkReview}
                   className="px-4 py-2 bg-purple-50 text-purple-700 border border-purple-200 font-semibold rounded hover:bg-purple-100 transition text-sm md:text-base flex items-center gap-2"
                 >
                   <FaBookmark /> Mark for Review & Next
                 </button>
-                <button 
+                <button
                   onClick={clearResponse}
                   className="px-4 py-2 bg-white border border-gray-300 text-gray-700 font-semibold rounded hover:bg-gray-100 transition text-sm md:text-base"
                 >
@@ -255,7 +311,7 @@ export default function ExamInterface() {
               </div>
 
               <div className="flex gap-3">
-                <button 
+                <button
                   onClick={handlePrevious}
                   disabled={currentIndex === 0}
                   className={`px-6 py-2 font-semibold rounded transition text-sm md:text-base border
@@ -263,7 +319,7 @@ export default function ExamInterface() {
                 >
                   Previous
                 </button>
-                <button 
+                <button
                   onClick={handleSaveAndNext}
                   className="px-8 py-2 bg-green-600 text-white font-bold rounded hover:bg-green-700 transition text-sm md:text-base shadow-md"
                 >
@@ -279,7 +335,7 @@ export default function ExamInterface() {
           absolute lg:relative right-0 top-0 h-full w-4/5 md:w-1/2 lg:w-1/4 bg-white border-l border-gray-200 shadow-2xl lg:shadow-none transition-transform duration-300 z-20 flex flex-col
           ${showPaletteMobile ? 'translate-x-0' : 'translate-x-full lg:translate-x-0'}
         `}>
-          
+
           <div className="p-4 border-b border-gray-200 bg-gray-50 flex justify-between items-center">
             <h3 className="font-bold text-gray-800">Question Palette</h3>
             <button className="lg:hidden text-gray-500 hover:text-red-500 font-bold text-xl" onClick={() => setShowPaletteMobile(false)}><FaTimes /></button>
@@ -288,19 +344,19 @@ export default function ExamInterface() {
           {/* EXACT 5-CATEGORY LEGEND */}
           <div className="p-4 border-b border-gray-200 grid grid-cols-2 gap-y-3 gap-x-2 text-[11px] md:text-xs font-medium text-gray-700">
             <div className="flex items-center gap-2">
-              <div className="w-5 h-5 flex items-center justify-center text-[10px] text-white bg-green-600 rounded-full">{stats.answered}</div> 
+              <div className="w-5 h-5 flex items-center justify-center text-[10px] text-white bg-green-600 rounded-full">{stats.answered}</div>
               Answered
             </div>
             <div className="flex items-center gap-2">
-              <div className="w-5 h-5 flex items-center justify-center text-[10px] text-white bg-red-500 rounded-full">{stats.notAnswered}</div> 
+              <div className="w-5 h-5 flex items-center justify-center text-[10px] text-white bg-red-500 rounded-full">{stats.notAnswered}</div>
               Not Answered
             </div>
             <div className="flex items-center gap-2">
-              <div className="w-5 h-5 flex items-center justify-center text-[10px] text-gray-700 bg-gray-200 border border-gray-300 rounded-full">{stats.notVisited}</div> 
+              <div className="w-5 h-5 flex items-center justify-center text-[10px] text-gray-700 bg-gray-200 border border-gray-300 rounded-full">{stats.notVisited}</div>
               Not Visited
             </div>
             <div className="flex items-center gap-2">
-              <div className="w-5 h-5 flex items-center justify-center text-[10px] text-white bg-purple-600 rounded-full">{stats.marked}</div> 
+              <div className="w-5 h-5 flex items-center justify-center text-[10px] text-white bg-purple-600 rounded-full">{stats.marked}</div>
               Marked
             </div>
             <div className="col-span-2 flex items-center gap-2 mt-1 p-1.5 bg-purple-50 rounded border border-purple-100">
@@ -318,7 +374,7 @@ export default function ExamInterface() {
               {examQuestions.map((q, index) => {
                 const status = getQuestionStatus(index);
                 return (
-                  <button 
+                  <button
                     key={q.id}
                     onClick={() => jumpToQuestion(index)}
                     className={`
@@ -340,7 +396,7 @@ export default function ExamInterface() {
 
           {/* Submit Action */}
           <div className="p-4 border-t border-gray-200 bg-gray-50">
-            <button 
+            <button
               onClick={() => setShowSubmitModal(true)}
               className="w-full py-3 bg-blue-700 hover:bg-blue-800 text-white font-bold rounded-lg shadow-md transition flex items-center justify-center gap-2 text-lg"
             >
@@ -364,13 +420,13 @@ export default function ExamInterface() {
               <h2 className="text-2xl font-bold text-white">Submit Examination?</h2>
               <p className="text-blue-200 text-sm mt-1">Please review your exam summary before final submission.</p>
             </div>
-            
+
             <div className="p-6">
-              
+
               {/* TOTAL QUESTIONS HEADER */}
               <div className="bg-blue-50 border border-blue-200 p-3 rounded-lg mb-4 flex justify-between items-center shadow-sm">
-                 <span className="font-bold text-blue-800">Total Questions</span>
-                 <span className="text-2xl font-black text-blue-900">{totalQuestions}</span>
+                <span className="font-bold text-blue-800">Total Questions</span>
+                <span className="text-2xl font-black text-blue-900">{totalQuestions}</span>
               </div>
 
               {/* EXACT 5 BOXES LAYOUT */}
@@ -391,7 +447,7 @@ export default function ExamInterface() {
                   <p className="text-2xl font-black text-purple-600">{stats.marked}</p>
                   <p className="text-sm text-gray-700 font-bold mt-1">Marked</p>
                 </div>
-                
+
                 {/* 5th Box - Spans Full Width */}
                 <div className="col-span-2 bg-purple-100 p-3 rounded-xl border-2 border-purple-300 text-center shadow-sm flex items-center justify-between px-6">
                   <div className="text-left">
@@ -408,13 +464,13 @@ export default function ExamInterface() {
               </div>
 
               <div className="flex gap-4 mt-2">
-                <button 
+                <button
                   onClick={() => setShowSubmitModal(false)}
                   className="flex-1 py-3 bg-white border-2 border-gray-300 text-gray-700 font-bold rounded-lg hover:bg-gray-50 transition"
                 >
                   Resume Test
                 </button>
-                <button 
+                <button
                   onClick={confirmFinalSubmit}
                   className="flex-1 py-3 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 transition shadow-lg flex justify-center items-center gap-2"
                 >
@@ -434,7 +490,7 @@ export default function ExamInterface() {
             <h2 className="text-3xl font-bold text-gray-900 mb-2 animate-pulse">Test Submitted Successfully!</h2>
             <p className="text-lg text-gray-600">Generating your detailed performance analytics...</p>
             <div className="w-64 h-2 bg-gray-200 rounded-full mt-6 mx-auto overflow-hidden">
-               <div className="h-full bg-blue-600 rounded-full animate-pulse" style={{ width: '100%' }}></div>
+              <div className="h-full bg-blue-600 rounded-full animate-pulse" style={{ width: '100%' }}></div>
             </div>
           </div>
         </div>

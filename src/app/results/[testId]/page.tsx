@@ -1,8 +1,10 @@
-// src/app/results/[testId]/page.tsx
 "use client";
 
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { FaArrowLeft, FaCheckCircle, FaTimesCircle, FaMinusCircle, FaTrophy, FaLock } from 'react-icons/fa';
+import { useRouter } from 'next/navigation';
+import { supabase } from '../../utils/supabase'; // పాత్ సరిచూసుకోండి
+import { FaArrowLeft, FaCheckCircle, FaTimesCircle, FaMinusCircle, FaTrophy, FaLock, FaSpinner } from 'react-icons/fa';
 
 // --- TypeScript Interfaces ---
 interface QuestionResult {
@@ -11,56 +13,37 @@ interface QuestionResult {
   options: string[];
   correctAnswer: string;
   explanation: string;
-  userAnswer: string | null; // null means not answered
+  userAnswer: string | null; 
 }
 
-// --- Dummy Data: Simulating Backend Response after Submission ---
-// In a real app, you would fetch this based on the user's submitted answers.
+// --- Dummy Data ---
 const resultData: QuestionResult[] = [
-  { 
-    id: 1, 
-    text: "The property of a fluid which determines its resistance to shearing stresses is called:", 
-    options: ["Viscosity", "Surface Tension", "Compressibility", "Capillarity"],
-    correctAnswer: "Viscosity",
-    explanation: "Viscosity is the physical property that characterizes the fluid's resistance to flow or shearing.",
-    userAnswer: "Viscosity" // Correct
-  },
-  { 
-    id: 2, 
-    text: "The angle of dip at the magnetic equator is:", 
-    options: ["0 degrees", "90 degrees", "45 degrees", "180 degrees"],
-    correctAnswer: "0 degrees",
-    explanation: "At the magnetic equator, the magnetic field lines are parallel to the Earth's surface, so the angle of dip is zero.",
-    userAnswer: "90 degrees" // Incorrect
-  },
-  { 
-    id: 3, 
-    text: "Who was the first Chief Minister of Telangana State?", 
-    options: ["K. Chandrashekar Rao", "N. Chandrababu Naidu", "Y. S. Rajasekhara Reddy", "K. Taraka Rama Rao"],
-    correctAnswer: "K. Chandrashekar Rao",
-    explanation: "K. Chandrashekar Rao (KCR) assumed office as the first Chief Minister of Telangana on June 2, 2014.",
-    userAnswer: null // Not Answered
-  },
-  { 
-    id: 4, 
-    text: "In PERT analysis, the time estimates of activities and probability of their occurrence follow:", 
-    options: ["Normal distribution curve", "Beta distribution curve", "Poisson's distribution curve", "Binomial distribution curve"],
-    correctAnswer: "Beta distribution curve",
-    explanation: "PERT assumes that the expected time of an activity follows a Beta distribution curve.",
-    userAnswer: "Beta distribution curve" // Correct
-  },
-  { 
-    id: 5, 
-    text: "The maximum bending moment for a simply supported beam with a uniformly distributed load 'w' over entire length 'l' is:", 
-    options: ["wl/2", "wl^2/8", "wl^2/4", "wl/8"],
-    correctAnswer: "wl^2/8",
-    explanation: "For a simply supported beam with UDL, the max bending moment occurs at the center and is calculated as (w * l^2) / 8.",
-    userAnswer: "wl^2/4" // Incorrect
-  },
+  { id: 1, text: "The property of a fluid which determines its resistance to shearing stresses is called:", options: ["Viscosity", "Surface Tension", "Compressibility", "Capillarity"], correctAnswer: "Viscosity", explanation: "Viscosity is the physical property that characterizes the fluid's resistance to flow or shearing.", userAnswer: "Viscosity" },
+  { id: 2, text: "The angle of dip at the magnetic equator is:", options: ["0 degrees", "90 degrees", "45 degrees", "180 degrees"], correctAnswer: "0 degrees", explanation: "At the magnetic equator, the magnetic field lines are parallel to the Earth's surface, so the angle of dip is zero.", userAnswer: "90 degrees" },
+  { id: 3, text: "Who was the first Chief Minister of Telangana State?", options: ["K. Chandrashekar Rao", "N. Chandrababu Naidu", "Y. S. Rajasekhara Reddy", "K. Taraka Rama Rao"], correctAnswer: "K. Chandrashekar Rao", explanation: "K. Chandrashekar Rao (KCR) assumed office as the first Chief Minister of Telangana on June 2, 2014.", userAnswer: null },
+  { id: 4, text: "In PERT analysis, the time estimates of activities and probability of their occurrence follow:", options: ["Normal distribution curve", "Beta distribution curve", "Poisson's distribution curve", "Binomial distribution curve"], correctAnswer: "Beta distribution curve", explanation: "PERT assumes that the expected time of an activity follows a Beta distribution curve.", userAnswer: "Beta distribution curve" },
+  { id: 5, text: "The maximum bending moment for a simply supported beam with a uniformly distributed load 'w' over entire length 'l' is:", options: ["wl/2", "wl^2/8", "wl^2/4", "wl/8"], correctAnswer: "wl^2/8", explanation: "For a simply supported beam with UDL, the max bending moment occurs at the center and is calculated as (w * l^2) / 8.", userAnswer: "wl^2/4" },
 ];
 
 export default function ResultsPage() {
+  const router = useRouter();
   
+  // 🔒 Security State
+  const [isAuthorized, setIsAuthorized] = useState<boolean>(false);
+
+  // --- Authentication Check ---
+  useEffect(() => {
+    const checkAuth = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        router.push('/login'); // సెషన్ లేకపోతే లాగిన్ కి పంపించేస్తాం
+      } else {
+        setIsAuthorized(true);
+      }
+    };
+    checkAuth();
+  }, [router]);
+
   // --- Calculate Analytics ---
   let correctCount = 0;
   let incorrectCount = 0;
@@ -77,12 +60,22 @@ export default function ResultsPage() {
   });
 
   const totalQuestions = resultData.length;
-  // No Negative Marks. Assuming Paper-I (+1 mark per correct). 
-  // If Paper-II, change multiplier to 2.
   const marksPerQuestion = 1; 
   const totalScore = correctCount * marksPerQuestion;
   const maxScore = totalQuestions * marksPerQuestion;
   const percentage = Math.round((totalScore / maxScore) * 100);
+
+  // 🔒 సెక్యూరిటీ చెక్ అయ్యేదాకా లోడింగ్ చూపిస్తాం
+  if (!isAuthorized) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <FaSpinner className="animate-spin text-5xl text-blue-600 mx-auto mb-4" />
+          <h2 className="text-xl font-bold text-gray-700">Verifying Access...</h2>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 font-sans pb-12">
@@ -153,7 +146,7 @@ export default function ResultsPage() {
           </div>
         </section>
 
-        {/* 4. Premium Upsell Banner (Business Strategy) */}
+        {/* 4. Premium Upsell Banner */}
         <section className="bg-gradient-to-r from-yellow-50 to-orange-50 border border-yellow-200 rounded-xl p-6 flex flex-col md:flex-row items-center justify-between shadow-sm">
           <div>
             <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">

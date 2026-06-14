@@ -1,161 +1,171 @@
-// src/app/dashboard/page.tsx
-import Link from 'next/link';
-import { FaLock, FaPlay, FaFileAlt, FaClock, FaTrophy, FaStar, FaBolt } from 'react-icons/fa';
+"use client";
 
-// --- Types ---
-interface MockTest {
-  id: number;
-  title: string;
-  category: 'Previous Year' | 'Chapter Test' | 'Grand Test';
-  type: 'Free' | 'Premium';
-  questions: number;
-  time: number;
-  isLocked: boolean;
-}
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { supabase } from '../utils/supabase';
+import { FaPlay, FaLock, FaCheckCircle, FaSpinner, FaLayerGroup, FaBookOpen, FaClipboardList } from 'react-icons/fa';
 
-// --- Data based on the Business Plan ---
-const mockTests: MockTest[] = [
-  // The Hook: Free High-Value Content
-  { id: 1, title: "TGPSC AEE 2023 - Paper 1 (General Studies)", category: "Previous Year", type: "Free", questions: 150, time: 150, isLocked: false },
-  { id: 2, title: "TGPSC AEE 2023 - Paper 2 (Civil Engineering)", category: "Previous Year", type: "Free", questions: 150, time: 150, isLocked: false },
-  { id: 3, title: "Civil Engg: Fluid Mechanics Basics", category: "Chapter Test", type: "Free", questions: 50, time: 50, isLocked: false },
-  { id: 4, title: "Civil Engg: Strength of Materials", category: "Chapter Test", type: "Free", questions: 50, time: 50, isLocked: false },
-  { id: 5, title: "General Studies: History of Telangana", category: "Chapter Test", type: "Free", questions: 50, time: 50, isLocked: false },
-  { id: 6, title: "Current Affairs: Last 6 Months Mega Test", category: "Chapter Test", type: "Free", questions: 100, time: 100, isLocked: false },
+// --- Dummy Data (దీన్ని తర్వాత డేటాబేస్ నుండి తెస్తాం) ---
+const mockTests = [
+  // Grand Tests (Overall Paper 1 & 2)
+  { id: 1, title: "Grand Test 1: Paper I (General Studies)", category: "grand", isPremium: false, questions: 150, time: 150, marks: 150 },
+  { id: 2, title: "Grand Test 2: Paper II (Civil Engineering)", category: "grand", isPremium: true, questions: 150, time: 150, marks: 300 },
+  { id: 3, title: "Grand Test 3: Full Mock (Paper I & II)", category: "grand", isPremium: true, questions: 300, time: 300, marks: 450 },
+  
+  // Subject Wise
+  { id: 4, title: "Fluid Mechanics & Hydraulics", category: "subject", isPremium: false, questions: 50, time: 45, marks: 100 },
+  { id: 5, title: "Structural Analysis", category: "subject", isPremium: true, questions: 50, time: 45, marks: 100 },
+  { id: 6, title: "Environmental Engineering", category: "subject", isPremium: true, questions: 50, time: 45, marks: 100 },
 
-  // The Monetization: Premium Content
-  { id: 7, title: "Grand Test 1: Full Length (Paper I & II)", category: "Grand Test", type: "Premium", questions: 300, time: 300, isLocked: true },
-  { id: 8, title: "Grand Test 2: Full Length (Paper I & II)", category: "Grand Test", type: "Premium", questions: 300, time: 300, isLocked: true },
-  { id: 9, title: "Grand Test 3: Full Length (Paper I & II)", category: "Grand Test", type: "Premium", questions: 300, time: 300, isLocked: true },
+  // Chapter Wise
+  { id: 7, title: "Kinematics of Fluid Flow", category: "chapter", isPremium: false, questions: 20, time: 15, marks: 40 },
+  { id: 8, title: "Design of Steel Tension Members", category: "chapter", isPremium: true, questions: 25, time: 20, marks: 50 },
+  { id: 9, title: "Telangana History: Statehood Movement", category: "chapter", isPremium: false, questions: 30, time: 25, marks: 30 },
 ];
 
-// Helper to filter tests
-const freeTests = mockTests.filter(test => !test.isLocked);
-const premiumTests = mockTests.filter(test => test.isLocked);
-
 export default function DashboardPage() {
+  const router = useRouter();
+  
+  // States
+  const [isAuthorized, setIsAuthorized] = useState(false);
+  const [userName, setUserName] = useState("Aspirant");
+  const [activeTab, setActiveTab] = useState("grand"); // Default tab
+
+  // Authentication Check
+  useEffect(() => {
+    const checkAuth = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        router.push('/login');
+      } else {
+        // యూజర్ పేరుని మెటాడేటా నుండి తీసుకోవడం
+        const name = session.user.user_metadata?.full_name || "Aspirant";
+        setUserName(name);
+        setIsAuthorized(true);
+      }
+    };
+    checkAuth();
+  }, [router]);
+
+  const handleStartTest = (testId: number, isPremium: boolean) => {
+    if (isPremium) {
+      // ప్రీమియం అయితే ప్రైసింగ్ పేజీకి పంపుతాం
+      router.push('/pricing');
+    } else {
+      // ఫ్రీ అయితే నేరుగా ఎగ్జామ్ కి పంపుతాం
+      router.push(`/exam/${testId}`);
+    }
+  };
+
+  if (!isAuthorized) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <FaSpinner className="animate-spin text-4xl text-blue-600" />
+      </div>
+    );
+  }
+
+  // ఫిల్టర్ చేసిన టెస్ట్‌లు
+  const filteredTests = mockTests.filter(test => test.category === activeTab);
+
   return (
-    <div className="min-h-screen bg-gray-50 text-gray-800 font-sans pb-12">
+    <div className="min-h-screen bg-gray-50 font-sans pb-12">
       
-      {/* 1. Welcome Banner (Upsell Focus) */}
-      <div className="bg-blue-800 text-white py-10 px-4 md:px-8 mb-8">
-        <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center">
-          <div>
-            <h1 className="text-3xl font-bold flex items-center gap-3">
-              Welcome, Aspirant! <span className="text-yellow-400"><FaTrophy /></span>
-            </h1>
-            <p className="text-blue-200 mt-2 text-lg">
-              You are on the <span className="font-bold text-white">Free Plan</span>. Upgrade to unlock 50+ Grand Tests and Chapter-wise mocks.
-            </p>
-          </div>
-          <div className="mt-6 md:mt-0">
-            <button className="bg-yellow-500 hover:bg-yellow-400 text-gray-900 font-bold py-3 px-8 rounded-lg shadow-lg flex items-center gap-2 transition transform hover:scale-105">
-              <FaStar /> Upgrade to Premium
-            </button>
-          </div>
+      {/* Welcome Header */}
+      <div className="bg-white border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">
+            Welcome back, <span className="text-blue-600">{userName}</span>! 👋
+          </h1>
+          <p className="mt-2 text-gray-600 text-lg">Select a category below to start your practice.</p>
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 md:px-8 space-y-12">
-
-        {/* 2. Free Resources Section (The Hook) */}
-        <section>
-          <div className="flex items-center gap-2 mb-6 border-b pb-2 border-gray-200">
-            <FaBolt className="text-yellow-500 text-xl" />
-            <h2 className="text-2xl font-bold text-gray-900">Your Free Resources</h2>
-          </div>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-8">
+        
+        {/* Modern Tab Navigation */}
+        <div className="flex flex-wrap gap-2 md:gap-4 mb-8">
+          <button 
+            onClick={() => setActiveTab("grand")}
+            className={`flex items-center gap-2 px-6 py-3 rounded-xl font-bold transition-all duration-200 shadow-sm
+              ${activeTab === "grand" ? "bg-blue-600 text-white shadow-blue-200" : "bg-white text-gray-600 border border-gray-200 hover:bg-gray-50"}`}
+          >
+            <FaClipboardList /> Overall Grand Tests
+          </button>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {freeTests.map((test) => (
-              <TestCard key={test.id} test={test} />
-            ))}
-          </div>
-        </section>
+          <button 
+            onClick={() => setActiveTab("subject")}
+            className={`flex items-center gap-2 px-6 py-3 rounded-xl font-bold transition-all duration-200 shadow-sm
+              ${activeTab === "subject" ? "bg-blue-600 text-white shadow-blue-200" : "bg-white text-gray-600 border border-gray-200 hover:bg-gray-50"}`}
+          >
+            <FaBookOpen /> Subject Wise
+          </button>
+          
+          <button 
+            onClick={() => setActiveTab("chapter")}
+            className={`flex items-center gap-2 px-6 py-3 rounded-xl font-bold transition-all duration-200 shadow-sm
+              ${activeTab === "chapter" ? "bg-blue-600 text-white shadow-blue-200" : "bg-white text-gray-600 border border-gray-200 hover:bg-gray-50"}`}
+          >
+            <FaLayerGroup /> Chapter Wise
+          </button>
+        </div>
 
-        {/* 3. Premium Test Series Section (The Upsell) */}
-        <section>
-          <div className="flex items-center justify-between mb-6 border-b pb-2 border-gray-200">
-            <div className="flex items-center gap-2">
-              <FaLock className="text-red-500 text-xl" />
-              <h2 className="text-2xl font-bold text-gray-900">Premium Grand Tests</h2>
+        {/* Test Cards Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {filteredTests.map((test) => (
+            <div key={test.id} className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 hover:shadow-md transition-shadow relative overflow-hidden group">
+              
+              {/* Premium / Free Badge */}
+              <div className="absolute top-4 right-4">
+                {test.isPremium ? (
+                  <span className="bg-yellow-100 text-yellow-800 text-xs font-extrabold px-3 py-1 rounded-full flex items-center gap-1 border border-yellow-200">
+                    <FaLock className="text-[10px]" /> PREMIUM
+                  </span>
+                ) : (
+                  <span className="bg-green-100 text-green-700 text-xs font-extrabold px-3 py-1 rounded-full flex items-center gap-1 border border-green-200">
+                    <FaCheckCircle className="text-[10px]" /> FREE
+                  </span>
+                )}
+              </div>
+
+              {/* Card Content */}
+              <div className="mt-6 mb-6">
+                <h3 className="text-xl font-bold text-gray-900 leading-tight mb-3 pr-8 group-hover:text-blue-700 transition-colors">
+                  {test.title}
+                </h3>
+                <div className="flex flex-wrap gap-3 text-sm text-gray-600 font-medium">
+                  <span className="bg-gray-50 px-2 py-1 rounded border border-gray-200">{test.questions} MCQs</span>
+                  <span className="bg-gray-50 px-2 py-1 rounded border border-gray-200">{test.time} Mins</span>
+                  <span className="bg-gray-50 px-2 py-1 rounded border border-gray-200">{test.marks} Marks</span>
+                </div>
+              </div>
+
+              {/* Action Button */}
+              <button 
+                onClick={() => handleStartTest(test.id, test.isPremium)}
+                className={`w-full py-3 rounded-lg font-bold flex items-center justify-center gap-2 transition-all
+                  ${test.isPremium 
+                    ? "bg-gradient-to-r from-yellow-500 to-yellow-600 hover:from-yellow-400 hover:to-yellow-500 text-white shadow-sm" 
+                    : "bg-blue-50 text-blue-700 hover:bg-blue-600 hover:text-white border border-blue-200 hover:border-blue-600"
+                  }`}
+              >
+                {test.isPremium ? (
+                  <>Unlock Now <FaLock className="text-sm opacity-80" /></>
+                ) : (
+                  <>Start Exam <FaPlay className="text-sm opacity-80" /></>
+                )}
+              </button>
             </div>
-            <span className="text-sm font-bold bg-red-100 text-red-600 px-3 py-1 rounded-full">Pro Only</span>
-          </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 opacity-90">
-            {premiumTests.map((test) => (
-              <TestCard key={test.id} test={test} />
-            ))}
-          </div>
-          
-          {/* CTA Banner inside Premium Section */}
-          <div className="mt-8 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100 rounded-xl p-8 text-center">
-            <h3 className="text-xl font-bold text-gray-900 mb-2">Want to clear TGPSC AEE in the first attempt?</h3>
-            <p className="text-gray-600 mb-6 max-w-2xl mx-auto">Get access to 10+ Full-Length Mock Tests, 50+ Chapter Tests, and detailed performance analytics designed by TGPSC toppers.</p>
-            <button className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-10 rounded-lg shadow-md transition">
-              View Premium Plans
-            </button>
-          </div>
-        </section>
+          ))}
 
-      </div>
-    </div>
-  );
-}
-
-// --- Reusable Component for Test Cards ---
-function TestCard({ test }: { test: MockTest }) {
-  return (
-    <div className={`relative bg-white rounded-xl shadow-sm border p-5 transition duration-200 flex flex-col justify-between h-full
-      ${test.isLocked ? 'border-gray-200' : 'border-blue-100 hover:shadow-md hover:-translate-y-1'}`}>
-      
-      <div>
-        <div className="flex justify-between items-start mb-2">
-          <span className="text-xs font-bold uppercase tracking-wider text-gray-500">
-            {test.category}
-          </span>
-          {test.isLocked ? (
-            <div className="bg-gray-100 text-gray-500 p-2 rounded-full">
-              <FaLock className="text-xs" />
+          {/* Empty State Fallback (Just in case) */}
+          {filteredTests.length === 0 && (
+            <div className="col-span-full py-12 text-center text-gray-500">
+              No tests available in this category currently. Check back soon!
             </div>
-          ) : (
-            <span className="bg-green-100 text-green-700 text-xs font-bold px-2 py-1 rounded">
-              FREE
-            </span>
           )}
         </div>
 
-        <h3 className={`text-lg font-bold leading-tight mb-4 ${test.isLocked ? 'text-gray-600' : 'text-gray-900'}`}>
-          {test.title}
-        </h3>
-      </div>
-      
-      <div>
-        <div className="flex items-center justify-between text-sm text-gray-500 mb-6 bg-gray-50 p-2 rounded">
-          <div className="flex items-center space-x-1">
-            <FaFileAlt className="text-blue-400" />
-            <span className="font-medium">{test.questions} Qs</span>
-          </div>
-          <div className="flex items-center space-x-1">
-            <FaClock className="text-red-400" />
-            <span className="font-medium">{test.time} Mins</span>
-          </div>
-        </div>
-
-        {test.isLocked ? (
-          <button className="w-full flex items-center justify-center space-x-2 bg-gray-100 text-gray-500 py-3 rounded-lg font-bold cursor-not-allowed border border-gray-200">
-            <FaLock className="text-xs" />
-            <span>Unlock to Attempt</span>
-          </button>
-        ) : (
-          <Link 
-            href={`/exam/${test.id}`}
-            className="w-full flex items-center justify-center space-x-2 bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg font-bold transition shadow-sm"
-          >
-            <FaPlay className="text-xs" />
-            <span>Start Now</span>
-          </Link>
-        )}
       </div>
     </div>
   );

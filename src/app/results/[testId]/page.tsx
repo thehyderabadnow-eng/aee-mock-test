@@ -13,14 +13,14 @@ interface QuestionResult {
   options: string[];
   correctAnswer: string;
   explanation: string;
-  userAnswer: string | null; 
+  userAnswer: string | null;
 }
 
 export default function ResultsPage() {
   const router = useRouter();
   const params = useParams();
   const testId = params.testId as string; // URL లోని టెస్ట్ ఐడీ
-  
+
   // --- States ---
   const [isAuthorized, setIsAuthorized] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -40,9 +40,10 @@ export default function ResultsPage() {
   // --- 🔒 1. Authentication Check ---
   useEffect(() => {
     const checkAuth = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        router.push('/login'); 
+      const { data: { user }, error } = await supabase.auth.getUser();
+
+      if (error || !user) {
+        window.location.href = '/login';
       } else {
         setIsAuthorized(true);
       }
@@ -163,7 +164,7 @@ export default function ResultsPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 font-sans pb-12">
-      
+
       {/* 1. Header Navigation */}
       <header className="bg-white shadow-sm border-b px-4 py-4 sticky top-0 z-10">
         <div className="max-w-5xl mx-auto flex items-center justify-between">
@@ -175,17 +176,17 @@ export default function ResultsPage() {
       </header>
 
       <div className="max-w-5xl mx-auto px-4 mt-8 space-y-8">
-        
+
         {/* 2. Score Card (Hero Section) */}
         <section className="bg-gradient-to-br from-blue-800 to-indigo-900 rounded-2xl shadow-lg p-6 md:p-10 text-white flex flex-col md:flex-row items-center justify-between">
           <div className="text-center md:text-left mb-6 md:mb-0">
             <h2 className="text-3xl md:text-4xl font-extrabold flex items-center justify-center md:justify-start gap-3">
-              <FaTrophy className="text-yellow-400" /> 
+              <FaTrophy className="text-yellow-400" />
               {stats.percentage >= 40 ? "Good Attempt!" : "Needs Improvement"}
             </h2>
             <p className="mt-2 text-blue-200 text-lg">{testTitle}</p>
           </div>
-          
+
           <div className="bg-white/10 p-6 rounded-xl border border-white/20 backdrop-blur-sm text-center min-w-[200px]">
             <p className="text-sm font-semibold text-blue-200 uppercase tracking-wider mb-1">Your Score</p>
             <p className="text-5xl font-black text-white">
@@ -208,7 +209,7 @@ export default function ResultsPage() {
               <p className="text-3xl font-black text-green-600">{stats.correct}</p>
             </div>
           </div>
-          
+
           <div className="bg-white p-6 rounded-xl shadow-sm border border-red-100 flex items-center gap-4">
             <div className="w-14 h-14 bg-red-100 text-red-500 rounded-full flex items-center justify-center text-2xl shadow-sm">
               <FaTimesCircle />
@@ -248,12 +249,12 @@ export default function ResultsPage() {
           <div className="bg-gray-50 px-6 py-4 border-b border-gray-200">
             <h3 className="text-xl font-bold text-gray-800">Detailed Solutions</h3>
           </div>
-          
+
           <div className="divide-y divide-gray-100">
             {resultData.map((q, index) => {
               const isCorrect = q.userAnswer === q.correctAnswer;
               const isSkipped = q.userAnswer === null;
-              
+
               return (
                 <div key={q.id} className="p-6 hover:bg-gray-50 transition">
                   <div className="flex gap-4 items-start">
@@ -264,7 +265,7 @@ export default function ResultsPage() {
                       <h4 className="text-lg font-medium text-gray-900 leading-relaxed mb-4">
                         {q.text}
                       </h4>
-                      
+
                       {/* Status Tag */}
                       <div className="mb-4 inline-block">
                         {isSkipped ? (

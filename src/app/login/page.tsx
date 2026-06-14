@@ -28,17 +28,14 @@ export default function LoginPage() {
 
             if (error) throw error;
 
-            // 🚀 1. Router ని రిఫ్రెష్ చేసి ఆథెంటికేషన్ స్టేట్ ని సింక్ చేయడం
-            router.refresh();
-
-            // 🚀 2. బ్రౌజర్ లో సెషన్ సేవ్ అవ్వడానికి ఒక 150ms టైమ్ ఇచ్చి ఆ తర్వాత పుష్ చేయడం
+            // 🚀 మాస్టర్ ట్రిక్: బ్రౌజర్‌కి టైమ్ ఇచ్చి, హార్డ్ నావిగేషన్ చేయడం 🚀
             setTimeout(() => {
-                router.push('/dashboard');
-            }, 150);
+                window.location.href = '/dashboard'; // router.push కి బదులు ఇది వాడాలి
+            }, 500);
 
         } catch (err: any) {
             setError(err.message || 'Invalid login credentials');
-            setIsLoading(false);
+            setIsLoading(false); // ఎర్రర్ వస్తేనే స్పిన్నర్ ఆపుతాం, సక్సెస్ అయితే పేజీ రీలోడ్ అయిపోతుంది
         }
     };
 

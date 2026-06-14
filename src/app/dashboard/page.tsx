@@ -11,7 +11,7 @@ const mockTests = [
   { id: 1, title: "Grand Test 1: Paper I (General Studies)", category: "grand", isPremium: false, questions: 150, time: 150, marks: 150 },
   { id: 2, title: "Grand Test 2: Paper II (Civil Engineering)", category: "grand", isPremium: true, questions: 150, time: 150, marks: 300 },
   { id: 3, title: "Grand Test 3: Full Mock (Paper I & II)", category: "grand", isPremium: true, questions: 300, time: 300, marks: 450 },
-  
+
   // Subject Wise
   { id: 4, title: "Fluid Mechanics & Hydraulics", category: "subject", isPremium: false, questions: 50, time: 45, marks: 100 },
   { id: 5, title: "Structural Analysis", category: "subject", isPremium: true, questions: 50, time: 45, marks: 100 },
@@ -25,21 +25,22 @@ const mockTests = [
 
 export default function DashboardPage() {
   const router = useRouter();
-  
+
   // States
   const [isAuthorized, setIsAuthorized] = useState(false);
   const [userName, setUserName] = useState("Aspirant");
   const [activeTab, setActiveTab] = useState("grand"); // Default tab
 
   // Authentication Check
+  // Authentication Check
   useEffect(() => {
     const checkAuth = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        router.push('/login');
+      const { data: { user }, error } = await supabase.auth.getUser();
+
+      if (error || !user) {
+        window.location.href = '/login';
       } else {
-        // యూజర్ పేరుని మెటాడేటా నుండి తీసుకోవడం
-        const name = session.user.user_metadata?.full_name || "Aspirant";
+        const name = user.user_metadata?.full_name || "Aspirant";
         setUserName(name);
         setIsAuthorized(true);
       }
@@ -70,7 +71,7 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 font-sans pb-12">
-      
+
       {/* Welcome Header */}
       <div className="bg-white border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -82,26 +83,26 @@ export default function DashboardPage() {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-8">
-        
+
         {/* Modern Tab Navigation */}
         <div className="flex flex-wrap gap-2 md:gap-4 mb-8">
-          <button 
+          <button
             onClick={() => setActiveTab("grand")}
             className={`flex items-center gap-2 px-6 py-3 rounded-xl font-bold transition-all duration-200 shadow-sm
               ${activeTab === "grand" ? "bg-blue-600 text-white shadow-blue-200" : "bg-white text-gray-600 border border-gray-200 hover:bg-gray-50"}`}
           >
             <FaClipboardList /> Overall Grand Tests
           </button>
-          
-          <button 
+
+          <button
             onClick={() => setActiveTab("subject")}
             className={`flex items-center gap-2 px-6 py-3 rounded-xl font-bold transition-all duration-200 shadow-sm
               ${activeTab === "subject" ? "bg-blue-600 text-white shadow-blue-200" : "bg-white text-gray-600 border border-gray-200 hover:bg-gray-50"}`}
           >
             <FaBookOpen /> Subject Wise
           </button>
-          
-          <button 
+
+          <button
             onClick={() => setActiveTab("chapter")}
             className={`flex items-center gap-2 px-6 py-3 rounded-xl font-bold transition-all duration-200 shadow-sm
               ${activeTab === "chapter" ? "bg-blue-600 text-white shadow-blue-200" : "bg-white text-gray-600 border border-gray-200 hover:bg-gray-50"}`}
@@ -114,7 +115,7 @@ export default function DashboardPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredTests.map((test) => (
             <div key={test.id} className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 hover:shadow-md transition-shadow relative overflow-hidden group">
-              
+
               {/* Premium / Free Badge */}
               <div className="absolute top-4 right-4">
                 {test.isPremium ? (
@@ -141,11 +142,11 @@ export default function DashboardPage() {
               </div>
 
               {/* Action Button */}
-              <button 
+              <button
                 onClick={() => handleStartTest(test.id, test.isPremium)}
                 className={`w-full py-3 rounded-lg font-bold flex items-center justify-center gap-2 transition-all
-                  ${test.isPremium 
-                    ? "bg-gradient-to-r from-yellow-500 to-yellow-600 hover:from-yellow-400 hover:to-yellow-500 text-white shadow-sm" 
+                  ${test.isPremium
+                    ? "bg-gradient-to-r from-yellow-500 to-yellow-600 hover:from-yellow-400 hover:to-yellow-500 text-white shadow-sm"
                     : "bg-blue-50 text-blue-700 hover:bg-blue-600 hover:text-white border border-blue-200 hover:border-blue-600"
                   }`}
               >

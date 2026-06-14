@@ -11,48 +11,48 @@ export default function LoginPage() {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
-    const [loading, setLoading] = useState(false);
-    const [errorMsg, setErrorMsg] = useState<string | null>(null);
+    const [loading, setIsLoading] = useState(false);
+    const [errorMsg, setError] = useState<string | null>(null);
     const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
-    const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
+    const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
-        setLoading(true);
-        setErrorMsg(null);
-        setSuccessMsg(null);
+        setIsLoading(true);
+        setError(null);
 
         try {
-            const { error } = await supabase.auth.signInWithPassword({
+            const { data, error } = await supabase.auth.signInWithPassword({
                 email,
                 password,
             });
 
-            if (error) {
-                // Supabase doesn't specify if user exists or password is wrong for security reasons
-                if (error.message.includes("Invalid login")) {
-                    throw new Error("Account not found or incorrect password. Please Register first.");
-                }
-                throw error;
-            }
-            router.push('/dashboard');
-        } catch (error: any) {
-            setErrorMsg(error.message);
-        } finally {
-            setLoading(false);
+            if (error) throw error;
+
+            // 🚀 1. Router ని రిఫ్రెష్ చేసి ఆథెంటికేషన్ స్టేట్ ని సింక్ చేయడం
+            router.refresh();
+
+            // 🚀 2. బ్రౌజర్ లో సెషన్ సేవ్ అవ్వడానికి ఒక 150ms టైమ్ ఇచ్చి ఆ తర్వాత పుష్ చేయడం
+            setTimeout(() => {
+                router.push('/dashboard');
+            }, 150);
+
+        } catch (err: any) {
+            setError(err.message || 'Invalid login credentials');
+            setIsLoading(false);
         }
     };
 
     const handleForgotPassword = async () => {
         if (!email) {
-            setErrorMsg("Please enter your email address to reset the password.");
+            setError("Please enter your email address to reset the password.");
             return;
         }
-        setLoading(true);
+        setIsLoading(true);
         const { error } = await supabase.auth.resetPasswordForEmail(email, {
             redirectTo: 'http://localhost:3000/update-password',
         });
-        setLoading(false);
-        if (error) setErrorMsg(error.message);
+        setIsLoading(false);
+        if (error) setError(error.message);
         else setSuccessMsg("Password reset link sent to your email!");
     };
 

@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { supabase } from '../../utils/supabase'; // పాత్ సరిచూసుకోండి
+import { useParams, useRouter } from 'next/navigation';
+import { supabase } from '../../utils/supabase'; // మీ పాత్ సరిచూసుకోండి
 import { FaArrowLeft, FaCheckCircle, FaTimesCircle, FaMinusCircle, FaTrophy, FaLock, FaSpinner } from 'react-icons/fa';
 
 // --- TypeScript Interfaces ---
@@ -16,27 +16,33 @@ interface QuestionResult {
   userAnswer: string | null; 
 }
 
-// --- Dummy Data ---
-const resultData: QuestionResult[] = [
-  { id: 1, text: "The property of a fluid which determines its resistance to shearing stresses is called:", options: ["Viscosity", "Surface Tension", "Compressibility", "Capillarity"], correctAnswer: "Viscosity", explanation: "Viscosity is the physical property that characterizes the fluid's resistance to flow or shearing.", userAnswer: "Viscosity" },
-  { id: 2, text: "The angle of dip at the magnetic equator is:", options: ["0 degrees", "90 degrees", "45 degrees", "180 degrees"], correctAnswer: "0 degrees", explanation: "At the magnetic equator, the magnetic field lines are parallel to the Earth's surface, so the angle of dip is zero.", userAnswer: "90 degrees" },
-  { id: 3, text: "Who was the first Chief Minister of Telangana State?", options: ["K. Chandrashekar Rao", "N. Chandrababu Naidu", "Y. S. Rajasekhara Reddy", "K. Taraka Rama Rao"], correctAnswer: "K. Chandrashekar Rao", explanation: "K. Chandrashekar Rao (KCR) assumed office as the first Chief Minister of Telangana on June 2, 2014.", userAnswer: null },
-  { id: 4, text: "In PERT analysis, the time estimates of activities and probability of their occurrence follow:", options: ["Normal distribution curve", "Beta distribution curve", "Poisson's distribution curve", "Binomial distribution curve"], correctAnswer: "Beta distribution curve", explanation: "PERT assumes that the expected time of an activity follows a Beta distribution curve.", userAnswer: "Beta distribution curve" },
-  { id: 5, text: "The maximum bending moment for a simply supported beam with a uniformly distributed load 'w' over entire length 'l' is:", options: ["wl/2", "wl^2/8", "wl^2/4", "wl/8"], correctAnswer: "wl^2/8", explanation: "For a simply supported beam with UDL, the max bending moment occurs at the center and is calculated as (w * l^2) / 8.", userAnswer: "wl^2/4" },
-];
-
 export default function ResultsPage() {
   const router = useRouter();
+  const params = useParams();
+  const testId = params.testId as string; // URL లోని టెస్ట్ ఐడీ
   
-  // 🔒 Security State
+  // --- States ---
   const [isAuthorized, setIsAuthorized] = useState<boolean>(false);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [resultData, setResultData] = useState<QuestionResult[]>([]);
+  const [testTitle, setTestTitle] = useState<string>("Grand Test");
 
-  // --- Authentication Check ---
+  // --- Score Stats State ---
+  const [stats, setStats] = useState({
+    correct: 0,
+    incorrect: 0,
+    skipped: 0,
+    totalScore: 0,
+    maxScore: 0,
+    percentage: 0
+  });
+
+  // --- 🔒 1. Authentication Check ---
   useEffect(() => {
     const checkAuth = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
-        router.push('/login'); // సెషన్ లేకపోతే లాగిన్ కి పంపించేస్తాం
+        router.push('/login'); 
       } else {
         setIsAuthorized(true);
       }
@@ -44,34 +50,112 @@ export default function ResultsPage() {
     checkAuth();
   }, [router]);
 
-  // --- Calculate Analytics ---
-  let correctCount = 0;
-  let incorrectCount = 0;
-  let skippedCount = 0;
+  // --- 📊 2. Fetch User Attempts & Questions to Generate Analytics ---
+  useEffect(() => {
+    if (!isAuthorized) return;
 
-  resultData.forEach((item) => {
-    if (item.userAnswer === null) {
-      skippedCount++;
-    } else if (item.userAnswer === item.correctAnswer) {
-      correctCount++;
-    } else {
-      incorrectCount++;
-    }
-  });
+    const generateAnalytics = async () => {
+      setIsLoading(true);
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
 
-  const totalQuestions = resultData.length;
-  const marksPerQuestion = 1; 
-  const totalScore = correctCount * marksPerQuestion;
-  const maxScore = totalQuestions * marksPerQuestion;
-  const percentage = Math.round((totalScore / maxScore) * 100);
+        // A. test_attempts టేబుల్ నుండి ఈ యూజర్ రాసిన లేటెస్ట్ ఎగ్జామ్ డేటా తెచ్చుకోవడం
+        const { data: attemptData, error: attemptError } = await supabase
+          .from('test_attempts')
+          .select('answers_data')
+          .eq('user_id', user.id)
+          .eq('test_id', testId)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .single();
 
-  // 🔒 సెక్యూరిటీ చెక్ అయ్యేదాకా లోడింగ్ చూపిస్తాం
-  if (!isAuthorized) {
+        if (attemptError) throw attemptError;
+        const userAnswers = attemptData?.answers_data as Record<number, string> || {};
+
+        // B. questions టేబుల్ నుండి ఒరిజినల్ ప్రశ్నలు, కరెక్ట్ ఆన్సర్స్ తెచ్చుకోవడం (Exam Page లాజిక్ లాగే)
+        let query = supabase.from('questions').select('id, question_text, options, correct_answer, explanation, subject_name');
+
+        if (testId === '1') {
+          query = query.eq('paper_type', 'paper_1');
+          setTestTitle("Grand Test 1: Paper I (General Studies)");
+        } else if (testId === '2') {
+          query = query.eq('paper_type', 'paper_2');
+          setTestTitle("Grand Test 2: Paper II (Civil Engineering)");
+        } else if (testId === '4') {
+          query = query.eq('subject_name', 'Fluid Mechanics');
+          setTestTitle("Subject Test: Fluid Mechanics");
+        } else if (testId === '7') {
+          query = query.eq('chapter_name', 'Kinematics of Flow');
+          setTestTitle("Chapter Test: Kinematics of Flow");
+        } else {
+          query = query.limit(5);
+        }
+
+        const { data: dbQuestions, error: questionsError } = await query;
+        if (questionsError) throw questionsError;
+
+        if (dbQuestions && dbQuestions.length > 0) {
+          // C. ఒరిజినల్ క్వశ్చన్స్ మరియు యూజర్ ఆన్సర్స్ ని మ్యాప్ (Compare) చేయడం
+          let correctCount = 0;
+          let incorrectCount = 0;
+          let skippedCount = 0;
+
+          const combinedResults: QuestionResult[] = dbQuestions.map((q, index) => {
+            const uAns = userAnswers[index] !== undefined ? userAnswers[index] : null;
+            const isCorrect = uAns === q.correct_answer;
+            const isSkipped = uAns === null;
+
+            if (isSkipped) skippedCount++;
+            else if (isCorrect) correctCount++;
+            else incorrectCount++;
+
+            return {
+              id: q.id,
+              text: q.question_text,
+              options: q.options,
+              correctAnswer: q.correct_answer,
+              explanation: q.explanation || 'No explanation provided for this question.',
+              userAnswer: uAns
+            };
+          });
+
+          // D. స్టాటిస్టిక్స్ లెక్కించడం
+          const totalQ = dbQuestions.length;
+          const marksPerQ = testId === '2' ? 2 : 1; // Paper 2 కి 2 మార్కులు, మిగతా వాటికి 1 మార్కు
+          const score = correctCount * marksPerQ;
+          const max = totalQ * marksPerQ;
+          const percent = max > 0 ? Math.round((score / max) * 100) : 0;
+
+          setStats({
+            correct: correctCount,
+            incorrect: incorrectCount,
+            skipped: skippedCount,
+            totalScore: score,
+            maxScore: max,
+            percentage: percent
+          });
+
+          setResultData(combinedResults);
+        }
+
+      } catch (err) {
+        console.error("Analytics Generation Error:", err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    generateAnalytics();
+  }, [isAuthorized, testId]);
+
+  // లోడింగ్ స్క్రీన్
+  if (!isAuthorized || isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
           <FaSpinner className="animate-spin text-5xl text-blue-600 mx-auto mb-4" />
-          <h2 className="text-xl font-bold text-gray-700">Verifying Access...</h2>
+          <h2 className="text-xl font-bold text-gray-700">Generating Your Performance Report...</h2>
         </div>
       </div>
     );
@@ -97,15 +181,15 @@ export default function ResultsPage() {
           <div className="text-center md:text-left mb-6 md:mb-0">
             <h2 className="text-3xl md:text-4xl font-extrabold flex items-center justify-center md:justify-start gap-3">
               <FaTrophy className="text-yellow-400" /> 
-              {percentage >= 50 ? "Good Attempt!" : "Needs Improvement"}
+              {stats.percentage >= 40 ? "Good Attempt!" : "Needs Improvement"}
             </h2>
-            <p className="mt-2 text-blue-200 text-lg">Grand Test: Paper I (General Studies)</p>
+            <p className="mt-2 text-blue-200 text-lg">{testTitle}</p>
           </div>
           
           <div className="bg-white/10 p-6 rounded-xl border border-white/20 backdrop-blur-sm text-center min-w-[200px]">
             <p className="text-sm font-semibold text-blue-200 uppercase tracking-wider mb-1">Your Score</p>
             <p className="text-5xl font-black text-white">
-              {totalScore} <span className="text-2xl text-blue-300 font-medium">/ {maxScore}</span>
+              {stats.totalScore} <span className="text-2xl text-blue-300 font-medium">/ {stats.maxScore}</span>
             </p>
             <p className="text-xs text-green-300 font-bold mt-2 bg-green-900/30 py-1 px-2 rounded-full inline-block">
               No Negative Marks Applied
@@ -121,7 +205,7 @@ export default function ResultsPage() {
             </div>
             <div>
               <p className="text-sm font-bold text-gray-500 uppercase">Correct</p>
-              <p className="text-3xl font-black text-green-600">{correctCount}</p>
+              <p className="text-3xl font-black text-green-600">{stats.correct}</p>
             </div>
           </div>
           
@@ -131,7 +215,7 @@ export default function ResultsPage() {
             </div>
             <div>
               <p className="text-sm font-bold text-gray-500 uppercase">Incorrect</p>
-              <p className="text-3xl font-black text-red-500">{incorrectCount}</p>
+              <p className="text-3xl font-black text-red-500">{stats.incorrect}</p>
             </div>
           </div>
 
@@ -141,7 +225,7 @@ export default function ResultsPage() {
             </div>
             <div>
               <p className="text-sm font-bold text-gray-500 uppercase">Unattempted</p>
-              <p className="text-3xl font-black text-gray-600">{skippedCount}</p>
+              <p className="text-3xl font-black text-gray-600">{stats.skipped}</p>
             </div>
           </div>
         </section>
@@ -172,7 +256,6 @@ export default function ResultsPage() {
               
               return (
                 <div key={q.id} className="p-6 hover:bg-gray-50 transition">
-                  {/* Question Header */}
                   <div className="flex gap-4 items-start">
                     <span className="shrink-0 w-8 h-8 flex items-center justify-center bg-blue-100 text-blue-700 font-bold rounded-full text-sm">
                       {index + 1}
@@ -190,11 +273,11 @@ export default function ResultsPage() {
                           </span>
                         ) : isCorrect ? (
                           <span className="bg-green-100 text-green-700 text-xs font-bold px-3 py-1 rounded-full border border-green-200 flex items-center gap-1">
-                            <FaCheckCircle /> Correct (+{marksPerQuestion} Mark)
+                            <FaCheckCircle /> Correct
                           </span>
                         ) : (
                           <span className="bg-red-100 text-red-600 text-xs font-bold px-3 py-1 rounded-full border border-red-200 flex items-center gap-1">
-                            <FaTimesCircle /> Incorrect (0 Marks)
+                            <FaTimesCircle /> Incorrect
                           </span>
                         )}
                       </div>

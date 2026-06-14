@@ -1,8 +1,25 @@
-// src/app/page.tsx
+"use client"; // 🚀 పేజీని క్లయింట్ కాంపోనెంట్ గా మారుస్తున్నాం
+
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { FaCalendarAlt, FaUserGraduate, FaClipboardList, FaArrowRight, FaMapMarkerAlt } from 'react-icons/fa';
+import { supabase } from './utils/supabase'; // 🚀 మీ సుపబేస్ పాత్ చెక్ చేసుకోండి
 
 export default function Home() {
+  // 🚀 యూజర్ లాగిన్ అయ్యాడా లేదా అని తెలుసుకోవడానికి State
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+
+  // 🚀 పేజీ లోడ్ అవ్వగానే Supabase లో యూజర్ ఉన్నాడో లేదో చెక్ చేసే ఎఫెక్ట్
+  useEffect(() => {
+    const checkAuth = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        setIsLoggedIn(true);
+      }
+    };
+    checkAuth();
+  }, []);
+
   return (
     <div className="min-h-screen bg-gray-50 font-sans selection:bg-blue-200">
       
@@ -32,12 +49,14 @@ export default function Home() {
           </p>
           
           <div className="flex flex-col sm:flex-row justify-center gap-4">
+            {/* 🚀 ఇక్కడ డైనమిక్ గా లింక్ మరియు టెక్స్ట్ మారుస్తున్నాం 🚀 */}
             <Link 
-              href="/login" 
+              href={isLoggedIn ? "/dashboard" : "/login"} 
               className="inline-flex justify-center items-center gap-2 bg-blue-600 text-white px-8 py-4 rounded-xl font-bold text-lg hover:bg-blue-500 transition-all shadow-[0_0_40px_-10px_rgba(37,99,235,0.5)] hover:shadow-[0_0_60px_-15px_rgba(37,99,235,0.7)] hover:-translate-y-1"
             >
-              Start Free Mock Test <FaArrowRight className="text-sm" />
+              {isLoggedIn ? "Go to Dashboard" : "Start Free Mock Test"} <FaArrowRight className="text-sm" />
             </Link>
+            
             <Link 
               href="/syllabus" 
               className="inline-flex justify-center items-center gap-2 bg-white/5 border border-white/10 text-white px-8 py-4 rounded-xl font-bold text-lg hover:bg-white/10 transition-all backdrop-blur-sm"

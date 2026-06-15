@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react'; // 🚀 useEffect యాడ్ చేశాం
+import { useRouter } from 'next/navigation'; // 🚀 నావిగేషన్ కోసం
 import { supabase } from '../utils/supabase';
-import { FaPlusCircle, FaSpinner, FaCheckCircle, FaDatabase, FaTimesCircle } from 'react-icons/fa';
+import { FaPlusCircle, FaSpinner, FaCheckCircle, FaDatabase, FaTimesCircle, FaLock } from 'react-icons/fa';
 
 // --- Syllabus Data (Cascading Dropdowns కోసం) ---
 const syllabusData: Record<string, Record<string, string[]>> = {
@@ -21,6 +22,12 @@ const syllabusData: Record<string, Record<string, string[]>> = {
 };
 
 export default function AdminPage() {
+    const router = useRouter();
+
+    // --- 🔒 Admin Security States 🔒 ---
+    const [isAuthorizedAdmin, setIsAuthorizedAdmin] = useState(false);
+    const [authChecking, setAuthChecking] = useState(true);
+
     // --- Form States ---
     const [paperType, setPaperType] = useState('paper_1');
     const [subjectName, setSubjectName] = useState(Object.keys(syllabusData['paper_1'])[0]);
@@ -36,6 +43,28 @@ export default function AdminPage() {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
     const topRef = useRef<HTMLDivElement>(null);
+
+    // --- 🚀 Admin Authorization Check 🚀 ---
+    useEffect(() => {
+        const verifyAdmin = async () => {
+            const { data: { user }, error } = await supabase.auth.getUser();
+
+            // ఇక్కడ 'your_email@gmail.com' ప్లేస్ లో మీరు సుపబేస్ లో రిజిస్టర్ అయిన మీ సొంత ఈమెయిల్ ఇవ్వండి.
+            // కేవలం ఆ ఈమెయిల్ ఉంటేనే అడ్మిన్ ప్యానెల్ ఓపెన్ అవుతుంది.
+            const ADMIN_EMAIL = "thehyderabadnow@gmail.com"; 
+
+            if (error || !user || user.email !== ADMIN_EMAIL) {
+                // అడ్మిన్ కాకపోతే సైలెంట్ గా డ్యాష్‌బోర్డ్ కి గెంటేస్తాం
+                window.location.href = '/dashboard';
+            } else {
+                setIsAuthorizedAdmin(true);
+            }
+            setAuthChecking(false);
+        };
+        
+        verifyAdmin();
+    }, [router]);
+
 
     // --- Handlers ---
     const handlePaperChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -114,6 +143,19 @@ export default function AdminPage() {
         }
     };
 
+    // 🔒 ఒకవేళ అడ్మిన్ చెకింగ్ లో ఉంటే లోడింగ్ స్క్రీన్ చూపిస్తాం
+    if (authChecking) {
+        return (
+            <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50">
+                <FaLock className="text-4xl text-gray-400 mb-4 animate-pulse" />
+                <h2 className="text-xl font-bold text-gray-600">Verifying Admin Access...</h2>
+            </div>
+        );
+    }
+
+    // అడ్మిన్ కాకపోతే ఏమీ చూపించం (effect వాళ్ళని పంపేస్తుంది)
+    if (!isAuthorizedAdmin) return null;
+
     return (
         <div className="min-h-screen bg-gray-50 font-sans py-12 relative">
 
@@ -141,8 +183,9 @@ export default function AdminPage() {
 
                 {/* Question Entry Form */}
                 <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-                    <div className="bg-blue-50/50 border-b border-gray-200 px-8 py-5">
+                    <div className="bg-blue-50/50 border-b border-gray-200 px-8 py-5 flex justify-between items-center">
                         <h2 className="text-xl font-bold text-gray-800">Question Entry Form</h2>
+                        <span className="bg-red-100 text-red-700 text-xs font-bold px-2 py-1 rounded flex items-center gap-1"><FaLock /> Authorized Personnel Only</span>
                     </div>
 
                     <form onSubmit={handleSubmit} className="p-8 space-y-8">
@@ -211,11 +254,11 @@ export default function AdminPage() {
                                     <div
                                         key={index}
                                         className={`flex items-stretch border rounded-lg overflow-hidden transition-colors duration-200 focus-within:ring-2 focus-within:ring-blue-500
-                      ${correctOptionIndex === index ? 'border-green-500 bg-green-50/30' : 'border-gray-300 bg-white'}`}
+                                          ${correctOptionIndex === index ? 'border-green-500 bg-green-50/30' : 'border-gray-300 bg-white'}`}
                                     >
                                         <label
                                             className={`flex items-center justify-center px-4 py-3 cursor-pointer border-r transition-colors
-                        ${correctOptionIndex === index ? 'bg-green-100 border-green-500' : 'bg-gray-100 border-gray-300 hover:bg-gray-200'}`}
+                                                ${correctOptionIndex === index ? 'bg-green-100 border-green-500' : 'bg-gray-100 border-gray-300 hover:bg-gray-200'}`}
                                             title={`Mark Option ${label} as Correct`}
                                         >
                                             <input

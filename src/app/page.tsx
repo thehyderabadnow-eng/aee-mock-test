@@ -1,15 +1,13 @@
-"use client"; // 🚀 పేజీని క్లయింట్ కాంపోనెంట్ గా మారుస్తున్నాం
+"use client";
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { FaCalendarAlt, FaUserGraduate, FaClipboardList, FaArrowRight, FaMapMarkerAlt } from 'react-icons/fa';
-import { supabase } from './utils/supabase'; // 🚀 మీ సుపబేస్ పాత్ చెక్ చేసుకోండి
+import { supabase } from './utils/supabase';
 
 export default function Home() {
-  // 🚀 యూజర్ లాగిన్ అయ్యాడా లేదా అని తెలుసుకోవడానికి State
   const [isLoggedIn, setIsLoggedIn] = useState(false);
 
-  // 🚀 పేజీ లోడ్ అవ్వగానే Supabase లో యూజర్ ఉన్నాడో లేదో చెక్ చేసే ఎఫెక్ట్
   useEffect(() => {
     const checkAuth = async () => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -27,8 +25,8 @@ export default function Home() {
       <section className="relative bg-[#0B1120] overflow-hidden border-b border-gray-800">
         {/* Abstract Background Glows */}
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-full max-w-7xl">
-          <div className="absolute top-[-20%] left-[-10%] w-[500px] h-[500px] rounded-full bg-blue-600/20 blur-[120px]"></div>
-          <div className="absolute bottom-[-20%] right-[-10%] w-[400px] h-[400px] rounded-full bg-purple-600/20 blur-[100px]"></div>
+          <div className="absolute top-[-20%] left-[-10%] w-125 h-125 rounded-full bg-blue-600/20 blur-[120px]"></div>
+          <div className="absolute bottom-[-20%] right-[-10%] w-100 h-100 rounded-full bg-purple-600/20 blur-[100px]"></div>
         </div>
 
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-24 pb-32 text-center lg:pt-32 lg:pb-40">
@@ -41,7 +39,7 @@ export default function Home() {
           </div>
           
           <h1 className="text-5xl md:text-7xl font-extrabold text-white tracking-tight mb-8 leading-tight">
-            Master Your <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-cyan-300">TGPSC AEE</span> Prep
+            Master Your <span className="text-transparent bg-clip-text bg-linear-to-r from-blue-400 to-cyan-300">TGPSC AEE</span> Prep
           </h1>
           
           <p className="mt-4 text-xl md:text-2xl text-gray-400 max-w-3xl mx-auto font-light leading-relaxed mb-10">
@@ -49,7 +47,7 @@ export default function Home() {
           </p>
           
           <div className="flex flex-col sm:flex-row justify-center gap-4">
-            {/* 🚀 ఇక్కడ డైనమిక్ గా లింక్ మరియు టెక్స్ట్ మారుస్తున్నాం 🚀 */}
+            {/* Dynamic Button based on Auth State */}
             <Link 
               href={isLoggedIn ? "/dashboard" : "/login"} 
               className="inline-flex justify-center items-center gap-2 bg-blue-600 text-white px-8 py-4 rounded-xl font-bold text-lg hover:bg-blue-500 transition-all shadow-[0_0_40px_-10px_rgba(37,99,235,0.5)] hover:shadow-[0_0_60px_-15px_rgba(37,99,235,0.7)] hover:-translate-y-1"

@@ -1,4 +1,5 @@
 // src/app/layout.tsx
+import { AuthProvider } from '@/context/AuthContext';
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import Navbar from "./components/Navbar"; // Navbar ని ఇంపోర్ట్ చేయండి
@@ -21,17 +22,15 @@ export const metadata: Metadata = {
 
 export default function RootLayout({
   children,
-}: Readonly<{
+}: {
   children: React.ReactNode;
-}>) {
+}) {
   return (
-    <html
-      lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
-    >
-      <body className="min-h-full flex flex-col">
-        <Navbar /> {/* ఇక్కడ Navbar ని యాడ్ చేసాం */}
-        <main className="flex-grow">{children}</main>
+    <html lang="en">
+      <body>
+        <AuthProvider>
+          {children}
+        </AuthProvider>
       </body>
     </html>
   );

@@ -37,18 +37,42 @@ export default function ExamInterface() {
   const totalQuestions = examQuestions.length;
 
   // --- 🔒 1. Authentication Check Effect ---
+  // --- 🔒 1. Authentication & Premium Validation Check ---
   useEffect(() => {
-    const checkAuth = async () => {
+    const checkAuthAndAccess = async () => {
       const { data: { user }, error } = await supabase.auth.getUser();
 
+      // 1. లాగిన్ అవ్వకపోతే లాగిన్ పేజీకి పంపేస్తాం
       if (error || !user) {
         window.location.href = '/login';
-      } else {
-        setIsAuthorized(true);
+        return;
       }
+
+      // 2. డైరెక్ట్ URL బైపాస్ ని ఆపడానికి ప్రీమియం చెక్
+      // డ్యాష్‌బోర్డ్ లో మనం ఇచ్చిన ప్రీమియం టెస్ట్ ఐడీల లిస్ట్ (2, 3, 5, 6, 8)
+      const premiumTestIds = ['2', '3', '5', '6', '8'];
+
+      if (premiumTestIds.includes(testId)) {
+        // ఈ టెస్ట్ ప్రీమియం అయితే, యూజర్ ప్రొఫైల్ ని చెక్ చేస్తాం
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('is_premium')
+          .eq('id', user.id)
+          .single();
+
+        // యూజర్ ప్రీమియం కాకపోతే వెంటనే ప్రైసింగ్ పేజీకి గెంటేస్తాం
+        if (!profile?.is_premium) {
+          window.location.href = '/pricing';
+          return;
+        }
+      }
+
+      // అన్ని కండిషన్స్ పాస్ అయితేనే ఎగ్జామ్ రాయనిస్తాం
+      setIsAuthorized(true);
     };
-    checkAuth();
-  }, [router]);
+
+    checkAuthAndAccess();
+  }, [router, testId]);
 
   // --- 🚀 2. Database Real Questions Fetch Effect 🚀 ---
   useEffect(() => {

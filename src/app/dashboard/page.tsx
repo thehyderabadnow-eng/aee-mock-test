@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '../utils/supabase';
-import { FaPlay, FaLock, FaCheckCircle, FaSpinner, FaLayerGroup, FaBookOpen, FaClipboardList } from 'react-icons/fa';
+import { FaPlay, FaLock, FaCheckCircle, FaSpinner, FaLayerGroup, FaBookOpen, FaClipboardList, FaCrown } from 'react-icons/fa';
 
 // --- Dummy Data (దీన్ని తర్వాత డేటాబేస్ నుండి తెస్తాం) ---
 const mockTests = [
@@ -29,12 +29,12 @@ export default function DashboardPage() {
   // States
   const [isAuthorized, setIsAuthorized] = useState(false);
   const [userName, setUserName] = useState("Aspirant");
-  const [activeTab, setActiveTab] = useState("grand"); // Default tab
+  const [isUserPremium, setIsUserPremium] = useState(false); // 🚀 కొత్త స్టేట్: యూజర్ ప్రీమియమా కాదా?
+  const [activeTab, setActiveTab] = useState("grand"); 
 
-  // Authentication Check
-  // Authentication Check
+  // Authentication & Profile Check
   useEffect(() => {
-    const checkAuth = async () => {
+    const checkAuthAndProfile = async () => {
       const { data: { user }, error } = await supabase.auth.getUser();
 
       if (error || !user) {
@@ -42,18 +42,30 @@ export default function DashboardPage() {
       } else {
         const name = user.user_metadata?.full_name || "Aspirant";
         setUserName(name);
+        
+        // 🚀 ప్రొఫైల్స్ టేబుల్ నుండి is_premium స్టేటస్ ని తెచ్చుకోవడం
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('is_premium')
+          .eq('id', user.id)
+          .single();
+          
+        if (profile) {
+          setIsUserPremium(profile.is_premium);
+        }
+        
         setIsAuthorized(true);
       }
     };
-    checkAuth();
+    checkAuthAndProfile();
   }, [router]);
 
-  const handleStartTest = (testId: number, isPremium: boolean) => {
-    if (isPremium) {
-      // ప్రీమియం అయితే ప్రైసింగ్ పేజీకి పంపుతాం
+  const handleStartTest = (testId: number, isTestPremium: boolean) => {
+    // 🚀 టెస్ట్ ప్రీమియం అయ్యి ఉండి, యూజర్ ఫ్రీ అకౌంట్ అయితేనే ప్రైసింగ్ కి పంపుతాం
+    if (isTestPremium && !isUserPremium) {
       router.push('/pricing');
     } else {
-      // ఫ్రీ అయితే నేరుగా ఎగ్జామ్ కి పంపుతాం
+      // యూజర్ ప్రీమియం అయినా, లేదా టెస్ట్ ఫ్రీ అయినా ఎగ్జామ్ కి వెళ్తారు
       router.push(`/exam/${testId}`);
     }
   };
@@ -66,7 +78,6 @@ export default function DashboardPage() {
     );
   }
 
-  // ఫిల్టర్ చేసిన టెస్ట్‌లు
   const filteredTests = mockTests.filter(test => test.category === activeTab);
 
   return (
@@ -74,11 +85,24 @@ export default function DashboardPage() {
 
       {/* Welcome Header */}
       <div className="bg-white border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">
-            Welcome back, <span className="text-blue-600">{userName}</span>! 👋
-          </h1>
-          <p className="mt-2 text-gray-600 text-lg">Select a category below to start your practice.</p>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight flex items-center gap-2">
+              Welcome back, <span className="text-blue-600">{userName}</span>! 👋
+            </h1>
+            <p className="mt-2 text-gray-600 text-lg">Select a category below to start your practice.</p>
+          </div>
+          
+          {/* 🚀 యూజర్ స్టేటస్ బ్యాడ్జ్ 🚀 */}
+          {isUserPremium ? (
+            <div className="inline-flex items-center gap-2 bg-linear-to-r from-yellow-400 to-yellow-600 text-white px-4 py-2 rounded-lg font-bold shadow-md">
+              <FaCrown /> Premium Member
+            </div>
+          ) : (
+            <div className="inline-flex items-center gap-2 bg-gray-100 text-gray-600 px-4 py-2 rounded-lg font-bold border border-gray-200">
+              Free Plan (Upgrade for more)
+            </div>
+          )}
         </div>
       </div>
 
@@ -113,53 +137,58 @@ export default function DashboardPage() {
 
         {/* Test Cards Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredTests.map((test) => (
-            <div key={test.id} className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 hover:shadow-md transition-shadow relative overflow-hidden group">
+          {filteredTests.map((test) => {
+            // 🚀 లాజిక్: టెస్ట్ ప్రీమియం అయ్యి ఉండి, యూజర్ ఫ్రీ అకౌంట్ అయితేనే లాక్ చూపిస్తాం
+            const isLocked = test.isPremium && !isUserPremium;
 
-              {/* Premium / Free Badge */}
-              <div className="absolute top-4 right-4">
-                {test.isPremium ? (
-                  <span className="bg-yellow-100 text-yellow-800 text-xs font-extrabold px-3 py-1 rounded-full flex items-center gap-1 border border-yellow-200">
-                    <FaLock className="text-[10px]" /> PREMIUM
-                  </span>
-                ) : (
-                  <span className="bg-green-100 text-green-700 text-xs font-extrabold px-3 py-1 rounded-full flex items-center gap-1 border border-green-200">
-                    <FaCheckCircle className="text-[10px]" /> FREE
-                  </span>
-                )}
-              </div>
+            return (
+              <div key={test.id} className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 hover:shadow-md transition-shadow relative overflow-hidden group">
 
-              {/* Card Content */}
-              <div className="mt-6 mb-6">
-                <h3 className="text-xl font-bold text-gray-900 leading-tight mb-3 pr-8 group-hover:text-blue-700 transition-colors">
-                  {test.title}
-                </h3>
-                <div className="flex flex-wrap gap-3 text-sm text-gray-600 font-medium">
-                  <span className="bg-gray-50 px-2 py-1 rounded border border-gray-200">{test.questions} MCQs</span>
-                  <span className="bg-gray-50 px-2 py-1 rounded border border-gray-200">{test.time} Mins</span>
-                  <span className="bg-gray-50 px-2 py-1 rounded border border-gray-200">{test.marks} Marks</span>
+                {/* Premium / Free Badge */}
+                <div className="absolute top-4 right-4">
+                  {test.isPremium ? (
+                    <span className="bg-yellow-100 text-yellow-800 text-xs font-extrabold px-3 py-1 rounded-full flex items-center gap-1 border border-yellow-200">
+                      <FaLock className="text-[10px]" /> PREMIUM TEST
+                    </span>
+                  ) : (
+                    <span className="bg-green-100 text-green-700 text-xs font-extrabold px-3 py-1 rounded-full flex items-center gap-1 border border-green-200">
+                      <FaCheckCircle className="text-[10px]" /> FREE
+                    </span>
+                  )}
                 </div>
+
+                {/* Card Content */}
+                <div className="mt-6 mb-6">
+                  <h3 className="text-xl font-bold text-gray-900 leading-tight mb-3 pr-8 group-hover:text-blue-700 transition-colors">
+                    {test.title}
+                  </h3>
+                  <div className="flex flex-wrap gap-3 text-sm text-gray-600 font-medium">
+                    <span className="bg-gray-50 px-2 py-1 rounded border border-gray-200">{test.questions} MCQs</span>
+                    <span className="bg-gray-50 px-2 py-1 rounded border border-gray-200">{test.time} Mins</span>
+                    <span className="bg-gray-50 px-2 py-1 rounded border border-gray-200">{test.marks} Marks</span>
+                  </div>
+                </div>
+
+                {/* Action Button */}
+                <button
+                  onClick={() => handleStartTest(test.id, test.isPremium)}
+                  className={`w-full py-3 rounded-lg font-bold flex items-center justify-center gap-2 transition-all
+                    ${isLocked
+                      ? "bg-linear-to-r from-yellow-500 to-yellow-600 hover:from-yellow-400 hover:to-yellow-500 text-white shadow-sm"
+                      : "bg-blue-50 text-blue-700 hover:bg-blue-600 hover:text-white border border-blue-200 hover:border-blue-600"
+                    }`}
+                >
+                  {isLocked ? (
+                    <>Unlock Now <FaLock className="text-sm opacity-80" /></>
+                  ) : (
+                    <>Start Exam <FaPlay className="text-sm opacity-80" /></>
+                  )}
+                </button>
               </div>
+            );
+          })}
 
-              {/* Action Button */}
-              <button
-                onClick={() => handleStartTest(test.id, test.isPremium)}
-                className={`w-full py-3 rounded-lg font-bold flex items-center justify-center gap-2 transition-all
-                  ${test.isPremium
-                    ? "bg-gradient-to-r from-yellow-500 to-yellow-600 hover:from-yellow-400 hover:to-yellow-500 text-white shadow-sm"
-                    : "bg-blue-50 text-blue-700 hover:bg-blue-600 hover:text-white border border-blue-200 hover:border-blue-600"
-                  }`}
-              >
-                {test.isPremium ? (
-                  <>Unlock Now <FaLock className="text-sm opacity-80" /></>
-                ) : (
-                  <>Start Exam <FaPlay className="text-sm opacity-80" /></>
-                )}
-              </button>
-            </div>
-          ))}
-
-          {/* Empty State Fallback (Just in case) */}
+          {/* Empty State Fallback */}
           {filteredTests.length === 0 && (
             <div className="col-span-full py-12 text-center text-gray-500">
               No tests available in this category currently. Check back soon!
